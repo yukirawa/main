@@ -1,0 +1,154 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three.js Realistic World</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+  <!-- CDNの読み込み -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/@react-three/fiber@8.0.0-beta.0/dist/three-fiber.min.js"></script>
+  <script src="https://unpkg.com/@react-three/drei@8.0.0-beta.0/dist/drei.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.0.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.0.0/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/javascript">
+    const { Canvas, useFrame } = ReactThreeFiber;
+    const { OrbitControls, Environment, Sky } = Drei;
+    const { useRef, useEffect, useState } = React;
+    const THREE = window.THREE;
+
+
+    function ThreejsRealisticWorld() {
+      return (
+        <Canvas shadows style={{ width: '100vw', height: '100vh' }} camera={{ fov: 75 }}>
+          <Sky sunPosition={[100, 100, 50]} />
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 10, 10]} castShadow intensity={1} />
+          <Environment preset="sunset" />
+          <Player />
+          <Scene />
+        </Canvas>
+      );
+    }
+
+
+    function Player() {
+      const playerRef = useRef();
+      const cameraRef = useRef();
+      const speed = 0.1;
+      const jumpStrength = 0.2;
+      const gravity = 0.01;
+      const [velocity, setVelocity] = useState(0);
+      const [keys, setKeys] = useState({});
+      const [firstPerson, setFirstPerson] = useState(false);
+      const [rotation, setRotation] = useState([0, 0]);
+      const [paused, setPaused] = useState(false);
+
+
+      useEffect(() => {
+        const handleKeyDown = (event) => {
+          if (event.key === 'Escape') setPaused((prev) => !prev);
+          if (paused) return;
+          setKeys((keys) => ({ ...keys, [event.key]: true }));
+          if (event.key === 'v') setFirstPerson((prev) => !prev);
+          if (event.key === ' ') setVelocity(jumpStrength);
+        };
+        const handleKeyUp = (event) => setKeys((keys) => ({ ...keys, [event.key]: false }));
+        const handleMouseMove = (event) => {
+          if (paused) return;
+          setRotation([event.movementX * 0.002, event.movementY * 0.002]);
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => {
+          window.removeEventListener('keydown', handleKeyDown);
+          window.removeEventListener('keyup', handleKeyUp);
+          window.removeEventListener('mousemove', handleMouseMove);
+        };
+      }, [paused]);
+
+
+      useFrame(({ camera }) => {
+        if (!playerRef.current || paused) return;
+        if (keys['w']) playerRef.current.position.z -= speed;
+        if (keys['s']) playerRef.current.position.z += speed;
+        if (keys['a']) playerRef.current.position.x -= speed;
+        if (keys['d']) playerRef.current.position.x += speed;
+
+
+        playerRef.current.position.y += velocity;
+        if (playerRef.current.position.y > 1) {
+          setVelocity((v) => v - gravity);
+        } else {
+          playerRef.current.position.y = 1;
+          setVelocity(0);
+        }
+
+
+        playerRef.current.rotation.y -= rotation[0];
+        if (firstPerson) {
+          camera.position.copy(playerRef.current.position);
+          camera.position.y += 1.5;
+          camera.lookAt(playerRef.current.position.x, playerRef.current.position.y + 1.5, playerRef.current.position.z - 1);
+        } else {
+          camera.position.set(playerRef.current.position.x, playerRef.current.position.y + 3, playerRef.current.position.z + 5);
+          camera.lookAt(playerRef.current.position);
+        }
+      });
+
+
+      return (
+        <mesh ref={playerRef} position={[0, 1, 0]}>
+          <sphereGeometry args={[0.5, 32, 32]} />
+          <meshStandardMaterial color="blue" />
+        </mesh>
+      );
+    }
+
+
+    function Scene() {
+      const terrain = new Float32Array(256 * 256);
+      for (let i = 0; i < terrain.length; i++) {
+        terrain[i] = Math.sin(i / 20) * Math.cos(i % 20) * 2;
+      }
+      return (
+        <>
+          {/* 地形の凹凸を追加 */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[200, 200, 256, 256]} />
+            <meshStandardMaterial displacementMap={new THREE.DataTexture(terrain, 256, 256, THREE.RedFormat, THREE.FloatType)} color="#228B22" roughness={0.5} metalness={0.3} />
+          </mesh>
+          
+          {/* ランダム生成された木 */}
+          {[...Array(50)].map((_, i) => (
+            <group key={i} position={[Math.random() * 180 - 90, 0, Math.random() * 180 - 90]}>
+              <mesh castShadow>
+                <cylinderGeometry args={[0.3, 0.5, 4, 16]} />
+                <meshStandardMaterial color="#8B4513" />
+              </mesh>
+              {[...Array(5)].map((_, j) => (
+                <mesh key={j} position={[0, 2 + j * 0.5, 0]} castShadow>
+                  <sphereGeometry args={[1.5 + Math.random() * 0.5, 32, 32]} />
+                  <meshStandardMaterial color={`hsl(${Math.random() * 40 + 100}, 50%, 40%)`} />
+                </mesh>
+              ))}
+            </group>
+          ))}
+        </>
+      );
+    }
+
+
+    // ReactDOMでアプリをレンダリング
+    ReactDOM.render(<ThreejsRealisticWorld />, document.getElementById('root'));
+  </script>
+</body>
+</html>

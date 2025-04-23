@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学校探検！謎解きアドベンチャー</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f8ff;
+      text-align: center;
+    }
+
+    .game-container {
+      margin-top: 50px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      width: 60%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .room {
+      margin: 20px;
+      padding: 10px;
+      background-color: #e0f7fa;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .room:hover {
+      background-color: #b2ebf2;
+    }
+
+    .message {
+      font-size: 18px;
+      color: #333;
+    }
+
+    #nextBtn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #00796b;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #nextBtn:hover {
+      background-color: #004d40;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="game-container">
+    <h1>学校探検！謎解きアドベンチャー</h1>
+    <p class="message">学校の中で隠された謎を解こう！</p>
+
+    <div id="room1" class="room">教室</div>
+    <div id="room2" class="room">体育館</div>
+    <div id="room3" class="room">屋上</div>
+
+    <p id="hint" class="message"></p>
+    <button id="nextBtn" onclick="nextRoom()">次の部屋へ</button>
+  </div>
+
+  <script>
+    let currentRoom = 0; // 部屋の状態（進行状況）
+
+    const hintMessage = [
+      "最初の部屋は教室。ここでヒントを探してみよう！",
+      "次の部屋は体育館。怪しい場所があるかも…",
+      "屋上に進んだら、大きなヒントが待っているかも！"
+    ];
+
+    function nextRoom() {
+      currentRoom++;
+
+      if (currentRoom < hintMessage.length) {
+        document.getElementById("hint").textContent = hintMessage[currentRoom];
+      } else {
+        document.getElementById("hint").textContent = "おめでとう！謎を全て解きました！";
+        document.getElementById("nextBtn").style.display = "none"; // 進むボタンを非表示にする
+      }
+    }
+
+    // 各部屋をクリックしたときにヒントを表示
+    document.getElementById("room1").addEventListener("click", function() {
+      document.getElementById("hint").textContent = hintMessage[0];
+    });
+    document.getElementById("room2").addEventListener("click", function() {
+      document.getElementById("hint").textContent = hintMessage[1];
+    });
+    document.getElementById("room3").addEventListener("click", function() {
+      document.getElementById("hint").textContent = hintMessage[2];
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テキストRPG</title>
+    <style>
+        body {
+            font-family: 'MS Gothic', 'Courier New', Courier, monospace;
+            background-color: black;
+            color: #33ff33;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            padding: 20px;
+            transition: background-color 0.5s;
+        }
+        .underline {
+            text-decoration: underline;
+        }
+        #input-container {
+            margin-top: 20px;
+        }
+        /* 虹色グラデーションのアニメーション */
+        @keyframes rainbowBackground {
+            0% { background: linear-gradient(45deg, red, orange, yellow, green, cyan, blue, violet); }
+            50% { background: linear-gradient(45deg, violet, blue, cyan, green, yellow, orange, red); }
+            100% { background: linear-gradient(45deg, red, orange, yellow, green, cyan, blue, violet); }
+        }
+        .rainbow {
+            animation: rainbowBackground 3s infinite;
+            background-size: 400% 400%;
+        }
+    </style>
+</head>
+<body>
+    <div id="game"></div>
+    <button id="startButton">ゲーム開始</button>
+    <div id="input-container" style="display:none;">
+        <input type="text" id="command" placeholder="コマンドを入力 (A:攻撃, D:防御, R:逃げる)">
+        <button onclick="processCommand()">送信</button>
+    </div>
+    <script>
+        const gameDiv = document.getElementById("game");
+        const inputContainer = document.getElementById("input-container");
+        const commandInput = document.getElementById("command");
+        const startButton = document.getElementById("startButton");
+        let player, enemyIndex = 0;
+        const enemies = [
+            { name: 'スライム', hp: 10, atk: 3, def: 1 },
+            { name: 'ゴブリン', hp: 15, atk: 5, def:2 },
+            { name: 'ドラゴン', hp: 30, atk: 8, def: 4 }
+        ];
+
+
+        function print88Style(text) {
+            const line = document.createElement("div");
+            line.innerHTML = `<span class='underline'>${text.replace(/ /g, "&nbsp;")}</span>`;
+            gameDiv.appendChild(line);
+            gameDiv.scrollTop = gameDiv.scrollHeight;
+        }
+
+
+        function battle() {
+            enemy = { ...enemies[enemyIndex] };
+            print88Style(`${enemy.name}が現れた！`);
+            inputContainer.style.display = "block";
+        }
+
+
+        function processCommand() {
+            const action = commandInput.value.toLowerCase();
+            commandInput.value = "";
+            if (player.hp <= 0 || enemy.hp <= 0) return;
+            
+            if (action === 'a') {
+                const damage = Math.max(1, player.atk - enemy.def);
+                enemy.hp -= damage;
+                print88Style(`みごとに${enemy.name}に${damage}のダメージ！`);
+            } else if (action === 'd') {
+                print88Style("なかなかの防御だ！受けるダメージが減少する！");
+                player.def *= 2;
+            } else if (action === 'r') {
+                if (Math.random() > 0.5) {
+                    print88Style("さんざん迷った末にあなたは逃げ出した！");
+                    inputContainer.style.display = "none";
+                    return;
+                } else {
+                    print88Style("ありがとう...しかし逃げられなかった！");
+                }
+            } else if (action === 'rainbow') {
+                document.body.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                return;
+            } else if (action === 'rw') {
+                document.body.classList.add("rainbow");  // 虹色グラデーションを適用
+                return;
+            }
+
+
+            if (enemy.hp > 0) {
+                const enemyDamage = Math.max(1, enemy.atk - player.def);
+                player.hp -= enemyDamage;
+                print88Style(`${enemy.name}の攻撃！あなたに${enemyDamage}のダメージ！`);
+            }
+
+
+            if (action === 'd') {
+                player.def /= 2;
+            }
+
+
+            print88Style(`あなたのHP: ${player.hp} / ${enemy.name}のHP: ${enemy.hp}`);
+
+
+            if (player.hp <= 0) {
+                print88Style("とうとうあなたは倒れた...");
+                inputContainer.style.display = "none";
+            } else if (enemy.hp <= 0) {
+                print88Style(`${enemy.name}を倒した！`);
+                enemyIndex++;
+                if (enemyIndex < enemies.length) {
+                    print88Style("次の敵が現れた...！");
+                    setTimeout(battle, 1000);
+                } else {
+                    print88Style("すべての敵を倒した！勝利だ！");
+                    inputContainer.style.display = "none";
+                }
+            }
+        }
+
+
+        function startGame() {
+            startButton.style.display = "none";
+            player = { hp: 20, atk: 5, def: 2 };
+            enemyIndex = 0;
+            print88Style("===== テキストRPG =====");
+            print88Style("みんなが待っていた冒険が始まる！");
+            battle();
+        }
+
+
+        startButton.addEventListener("click", startGame);
+    </script>
+</body>
+</html>

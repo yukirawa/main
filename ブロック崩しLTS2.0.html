@@ -1,0 +1,220 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブロック崩し</title>
+    <style>
+        body {
+            text-align: center;
+            background-color: black;
+        }
+        #gameContainer {
+            width: 640px;
+            height: 480px;
+            position: relative;
+            margin: auto;
+            background: url('back.png') no-repeat center;
+            background-size: cover;
+        }
+        canvas {
+            display: block;
+            background: transparent;
+        }
+        .controls {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="640" height="480"></canvas>
+    </div>
+    <div class="controls">
+        <label for="speedSlider">ボール速度: </label>
+        <input type="range" id="speedSlider" min="1" max="10" value="2">
+        <label for="bgmSelect">BGM: </label>
+        <select id="bgmSelect">
+            <option value="nomal.ogg">普通</option>
+            <option value="kansha.ogg">ありがとう</option>
+            <option value="kashi.ogg">歌詞付き</option>
+        </select>
+    </div>
+    <script>
+        let canvas = document.getElementById("gameCanvas");
+        let ctx = canvas.getContext("2d");
+        let speedSlider = document.getElementById("speedSlider");
+        let bgmSelect = document.getElementById("bgmSelect");
+        let rows = 10, cols = 10, blockWidth = 60, blockHeight = 20;
+        let paddle = { x: canvas.width / 2 - 40, y: canvas.height - 30, width: 80, height: 10, dx: 0 };
+        let balls = [{ x: canvas.width / 2, y: canvas.height - 50, radius: 5, dx: 2, dy: -2 }];
+        let breakCount = 0, multiplier = 1;
+        let blocks = Array.from({ length: rows * cols }, (_, i) => ({ x: (i % cols) * blockWidth, y: Math.floor(i / cols) * blockHeight, broken: false }));
+        let multiplyBalls = false;
+        
+        function resetGame() {
+            blocks = Array.from({ length: rows * cols }, (_, i) => ({ x: (i % cols) * blockWidth, y: Math.floor(i / cols) * blockHeight, broken: false }));
+            balls = [{ x: canvas.width / 2, y: canvas.height - 50, radius: 5, dx: 2, dy: -2 }];
+            paddle = { x: canvas.width / 2 - 40, y: canvas.height - 30, width: 80, height: 10, dx: 0 };
+            breakCount = 0;
+            multiplier = 1;
+            multiplyBalls = confirm("ボールを増殖させますか？");
+
+
+            const bgm = new Audio(bgmSelect.value);
+            bgm.loop = true;
+            bgm.play();
+        }
+        
+        const bgm = new Audio(bgmSelect.value);
+        bgm.loop = true;
+        bgm.play();
+
+
+        bgmSelect.addEventListener("change", () => {
+            bgm.src = bgmSelect.value;
+            bgm.play();
+        });
+        
+        const soundEffects = {
+            break: new Audio("hakai.ogg"),
+            bounce: new Audio("uchikaesu.ogg"),
+            milestone: new Audio("kesoku.ogg")
+        };
+
+
+        function drawPaddle() {
+            ctx.fillStyle = "#00FF00";
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+        }
+
+
+        function drawBalls() {
+            ctx.fillStyle = "#FF0000";
+            balls.forEach(ball => {
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+
+        function drawBlocks() {
+            blocks.forEach((block, index) => {
+                if (!block.broken) {
+                    ctx.fillStyle = `hsl(${(index * 360 / blocks.length) % 360}, 100%, 50%)`;
+                    ctx.fillRect(block.x, block.y, blockWidth, blockHeight);
+                }
+            });
+        }
+
+
+        function update() {
+            balls.forEach(ball => {
+                ball.x += ball.dx * multiplier;
+                ball.y += ball.dy * multiplier;
+                
+                if (ball.x < 0 || ball.x > canvas.width) ball.dx *= -1;
+                if (ball.y < 0) ball.dy *= -1;
+                
+                if (ball.y > canvas.height) {
+                    alert("ゲームオーバー");
+                    resetGame();
+                }
+                
+                if (ball.x > paddle.x && ball.x < paddle.x + paddle.width && ball.y + ball.radius > paddle.y) {
+                    ball.dy *= -1;
+                    soundEffects.bounce.play();
+                }
+
+
+                blocks.forEach(block => {
+                    if (!block.broken && ball.x > block.x && ball.x < block.x + blockWidth && ball.y > block.y && ball.y < block.y + blockHeight) {
+                        ball.dy *= -1;
+                        block.broken = true;
+                        breakCount++;
+                        soundEffects.break.play();
+
+
+                        if (multiplyBalls && breakCount % 5 === 0) {
+                            balls.push({ ...ball, dx: -ball.dx });
+                            soundEffects.milestone.play();
+                        }
+                    }
+                });
+            });
+            
+            if (blocks.every(b => b.broken)) {
+                alert("ゲームクリア！");
+                resetGame();
+            }
+
+
+            paddle.x += paddle.dx;
+            paddle.x = Math.max(0, Math.min(canvas.width - paddle.width, paddle.x));
+        }
+
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBlocks();
+            drawPaddle();
+            drawBalls();
+        }
+
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        
+        // キーボード操作
+        document.addEventListener("keydown", e => {
+            if (e.key === "ArrowLeft") paddle.dx = -5;
+            if (e.key === "ArrowRight") paddle.dx = 5;
+        });
+        document.addEventListener("keyup", () => paddle.dx = 0);
+
+
+        // タッチ操作
+        let touchStartX = 0;
+
+
+        function getTouchPosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.touches[0].clientX - rect.left,
+                y: event.touches[0].clientY - rect.top
+            };
+        }
+
+
+        document.addEventListener("touchstart", e => {
+            touchStartX = getTouchPosition(e).x;
+            if (touchStartX < canvas.width / 2) {
+                paddle.dx = -5;
+            } else {
+                paddle.dx = 5;
+            }
+        });
+
+
+        document.addEventListener("touchmove", e => {
+            const touchPos = getTouchPosition(e);
+            paddle.x = touchPos.x - paddle.width / 2;
+            paddle.x = Math.max(0, Math.min(canvas.width - paddle.width, paddle.x));
+        });
+
+
+        document.addEventListener("touchend", () => {
+            paddle.dx = 0;
+        });
+
+
+        speedSlider.addEventListener("input", () => {
+            multiplier = speedSlider.value / 2;
+        });
+
+
+        loop();
+    </script>
+</body>
+</html>

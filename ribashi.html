@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リバーシ</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        #board { display: grid; grid-template-columns: repeat(8, 50px); gap: 2px; margin: 20px auto; width: 416px; }
+        .cell { width: 50px; height: 50px; background-color: green; display: flex; align-items: center; justify-content: center; position: relative; }
+        .piece { width: 40px; height: 40px; border-radius: 50%; position: absolute; transition: transform 0.3s ease; }
+        .black { background-color: black; }
+        .white { background-color: white; }
+        .valid-move { background-color: rgba(255, 255, 255, 0.3); }
+        #scoreboard { margin: 10px; font-size: 20px; }
+        .hidden { display: none; }
+        #menu { margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <h1>リバーシ</h1>
+    <div id="menu">
+        <h2>対戦モードを選択</h2>
+        <button onclick="startHumanVsHuman()">人間同士</button>
+        <button onclick="startHumanVsAI()">AI対戦</button>
+    </div>
+    <div id="game" class="hidden">
+        <div id="scoreboard">黒: <span id="blackScore">2</span> - 白: <span id="whiteScore">2</span></div>
+        <div id="board"></div>
+        <p>現在のターン: <span id="turn">黒</span></p>
+    </div>
+
+    <script>
+        const menu = document.getElementById("menu");
+        const gameDiv = document.getElementById("game");
+        const board = document.getElementById("board");
+        const turnDisplay = document.getElementById("turn");
+        const blackScoreDisplay = document.getElementById("blackScore");
+        const whiteScoreDisplay = document.getElementById("whiteScore");
+        let cells = [];
+        let currentPlayer = "black";
+        let gameMode = ""; // "human-vs-human" or "human-vs-ai"
+        const directions = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
+        function startHumanVsHuman() {
+            gameMode = "human-vs-human";
+            menu.classList.add("hidden");
+            gameDiv.classList.remove("hidden");
+            createBoard();
+        }
+
+        function startHumanVsAI() {
+            gameMode = "human-vs-ai";
+            menu.classList.add("hidden");
+            gameDiv.classList.remove("hidden");
+            createBoard();
+            if (currentPlayer === "white") {
+                aiMove();
+            }
+        }
+
+        function createBoard() {
+            board.innerHTML = "";
+            cells = [];
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    const cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    cell.addEventListener("click", handleMove);
+                    board.appendChild(cell);
+                    cells.push(cell);
+                }
+            }
+            placeInitialPieces();
+            updateValidMoves();
+            updateScore();
+        }
+
+        function placeInitialPieces() {
+            placePiece(3, 3, "white");
+            placePiece(4, 4, "white");
+            placePiece(3, 4, "black");
+            placePiece(4, 3, "black");
+        }
+
+        function placePiece(x, y, color) {
+            const cell = cells.find(c => c.dataset.x == x && c.dataset.y == y);
+            if (cell && !cell.firstChild) {
+                const piece = document.createElement("div");
+                piece.classList.add("piece", color);
+                piece.style.transform = "rotateY(0deg)";
+                cell.appendChild(piece);
+            }
+        }
+
+        function handleMove(event) {
+            const x = parseInt(event.target.dataset.x);
+            const y = parseInt(event.target.dataset.y);
+            if (event.target.firstChild || !isValidMove(x, y, currentPlayer)) return;
+            placePiece(x, y, currentPlayer);
+            flipPieces(x, y, currentPlayer);
+            currentPlayer = currentPlayer === "black" ? "white" : "black";
+            turnDisplay.textContent = currentPlayer === "black" ? "黒" : "白";
+            updateValidMoves();
+            updateScore();
+            if (gameMode === "human-vs-ai" && currentPlayer === "white") {
+                aiMove();
+            }
+        }
+
+        function isValidMove(x, y, color) {
+            return directions.some(([dx, dy]) => canFlip(x, y, dx, dy, color));
+        }
+
+        function canFlip(x, y, dx, dy, color) {
+            let i = 1;
+            let flipped = [];
+            while (true) {
+                let nx = x + dx * i;
+                let ny = y + dy * i;
+                let cell = cells.find(c => c.dataset.x == nx && c.dataset.y == ny);
+                if (!cell || !cell.firstChild) return false;
+                if (cell.firstChild.classList.contains(color)) return flipped.length > 0;
+                flipped.push(cell);
+                i++;
+            }
+        }
+
+        function flipPieces(x, y, color) {
+            directions.forEach(([dx, dy]) => {
+                let i = 1;
+                let toFlip = [];
+                while (true) {
+                    let nx = x + dx * i;
+                    let ny = y + dy * i;
+                    let cell = cells.find(c => c.dataset.x == nx && c.dataset.y == ny);
+                    if (!cell || !cell.firstChild) break;
+                    if (cell.firstChild.classList.contains(color)) {
+                        toFlip.forEach(c => {
+                            c.firstChild.style.transform = "rotateY(180deg)";
+                            setTimeout(() => {
+                                c.firstChild.classList.remove("black", "white");
+                                c.firstChild.classList.add(color);
+                                c.firstChild.style.transform = "rotateY(0deg)";
+                            }, 300);
+                        });
+                        break;
+                    }
+                    toFlip.push(cell);
+                    i++;
+                }
+            });
+        }
+
+        function updateValidMoves() {
+            cells.forEach(cell => cell.classList.remove("valid-move"));
+            cells.forEach(cell => {
+                if (!cell.firstChild && isValidMove(parseInt(cell.dataset.x), parseInt(cell.dataset.y), currentPlayer)) {
+                    cell.classList.add("valid-move");
+                }
+            });
+        }
+
+        function updateScore() {
+            let blackCount = 0, whiteCount = 0;
+            cells.forEach(cell => {
+                if (cell.firstChild) {
+                    if (cell.firstChild.classList.contains("black")) blackCount++;
+                    else if (cell.firstChild.classList.contains("white")) whiteCount++;
+                }
+            });
+            blackScoreDisplay.textContent = blackCount;
+            whiteScoreDisplay.textContent = whiteCount;
+        }
+
+        function aiMove() {
+            // 簡単なAI（ランダムに有効な手を選ぶ）
+            const validMoves = [];
+            cells.forEach(cell => {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                if (!cell.firstChild && isValidMove(x, y, "white")) {
+                    validMoves.push([x, y]);
+                }
+            });
+            if (validMoves.length > 0) {
+                const [x, y] = validMoves[Math.floor(Math.random() * validMoves.length)];
+                const cell = cells.find(c => c.dataset.x == x && c.dataset.y == y);
+                placePiece(x, y, "white");
+                flipPieces(x, y, "white");
+                currentPlayer = "black";
+                turnDisplay.textContent = "黒";
+                updateValidMoves();
+                updateScore();
+            }
+        }
+    </script>
+</body>
+</html>

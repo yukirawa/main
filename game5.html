@@ -1,0 +1,180 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>簡単なシューティングゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #111;
+        }
+        #score {
+            color: white;
+            font-size: 24px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="480" height="600"></canvas>
+    <div id="score">Score: 0</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+
+
+        const player = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 60,
+            width: 50,
+            height: 50,
+            speed: 5, // 最初の速度
+            targetSpeed: 5, // 最初の目標速度
+            acceleration: 0.05 // 加速の割合
+        };
+
+
+        const bullets = [];
+        const enemies = [];
+        let gameOver = false;
+        let score = 0;
+
+
+        document.addEventListener('keydown', handleKeyDown);
+
+
+        function handleKeyDown(e) {
+            if (e.key === 'ArrowLeft' && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if (e.key === 'ArrowRight' && player.x + player.width < canvas.width) {
+                player.x += player.speed;
+            }
+            if (e.key === ' ') {
+                if (bullets.length < 5) {
+                    bullets.push({ x: player.x + player.width / 2 - 2.5, y: player.y, width: 5, height: 10, speed: 7 });
+                }
+            }
+        }
+
+
+        function spawnEnemy() {
+            if (Math.random() < 0.03) {
+                enemies.push({ x: Math.random() * (canvas.width - 50), y: 0, width: 50, height: 50, speed: 3 });
+            }
+        }
+
+
+        function update() {
+            if (gameOver) return;
+
+
+            // 弾の更新
+            bullets.forEach((bullet, index) => {
+                bullet.y -= bullet.speed;
+                if (bullet.y + bullet.height < 0) {
+                    bullets.splice(index, 1);
+                }
+            });
+
+
+            // 敵の更新
+            enemies.forEach((enemy, enemyIndex) => {
+                enemy.y += enemy.speed;
+                if (enemy.y > canvas.height) {
+                    enemies.splice(enemyIndex, 1);
+                }
+
+
+                // 弾と敵の衝突判定
+                bullets.forEach((bullet, bulletIndex) => {
+                    if (
+                        bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y
+                    ) {
+                        enemies.splice(enemyIndex, 1);
+                        bullets.splice(bulletIndex, 1);
+                        score++; // スコア加算
+                    }
+                });
+
+
+                // プレイヤーと敵の衝突判定
+                if (
+                    player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y
+                ) {
+                    gameOver = true;
+                }
+            });
+
+
+            // スピードの加速
+            const targetSpeed = Math.min(player.speed * 2, player.speed + 0.1);
+            player.targetSpeed = targetSpeed;
+
+
+            // スムーズなスピード変更（補間）
+            player.speed += (player.targetSpeed - player.speed) * player.acceleration;
+        }
+
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+
+            // プレイヤー描画
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+
+            // 弾描画
+            ctx.fillStyle = 'white';
+            bullets.forEach(bullet => ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height));
+
+
+            // 敵描画
+            ctx.fillStyle = 'red';
+            enemies.forEach(enemy => ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height));
+
+
+            // スコア表示
+            scoreDisplay.textContent = `Score: ${score}`;
+
+
+            // ゲームオーバー表示
+            if (gameOver) {
+                ctx.fillStyle = 'red';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+            }
+        }
+
+
+        function gameLoop() {
+            update();
+            draw();
+            spawnEnemy();
+            if (!gameOver) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+
+        gameLoop();
+    </script>
+</body>
+</html>

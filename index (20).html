@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>マリオ風アクションゲーム</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #5c94fc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    #game-container {
+      position: relative;
+      width: 800px;
+      height: 600px;
+    }
+
+    canvas {
+      background-color: #87ceeb;
+    }
+
+    #game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: red;
+      font-size: 40px;
+      display: none;
+    }
+
+    #level-clear {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: green;
+      font-size: 40px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="game-over">ゲームオーバー！</div>
+    <div id="level-clear">レベルクリア！次の面へ進みます。</div>
+  </div>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = 800;
+    canvas.height = 600;
+
+    const gravity = 0.8;
+    const friction = 0.9;
+
+    let player = {
+      x: 100,
+      y: canvas.height - 150,
+      width: 50,
+      height: 50,
+      speed: 5,
+      dx: 0,
+      dy: 0,
+      jumping: false
+    };
+
+    let blocks = [
+      { x: 200, y: canvas.height - 100, width: 100, height: 30 },
+      { x: 400, y: canvas.height - 200, width: 100, height: 30 },
+      { x: 600, y: canvas.height - 300, width: 100, height: 30 },
+      { x: 700, y: canvas.height - 50, width: 50, height: 30 }
+    ];
+
+    let goal = { x: 750, y: canvas.height - 50, width: 50, height: 50 };  // ゴール地点
+
+    let currentLevel = 1;
+    let isLevelCleared = false;
+
+    let keys = {
+      right: false,
+      left: false,
+      up: false
+    };
+
+    // キー入力のイベントリスナー
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") keys.right = true;
+      if (e.key === "ArrowLeft") keys.left = true;
+      if (e.key === "ArrowUp" && !player.jumping) {
+        keys.up = true;
+        player.dy = -15; // ジャンプの力
+        player.jumping = true;
+      }
+      if (e.key === "a") {
+        // Aを押すと秘密のゲームへ
+        startSecretGame();
+      }
+    });
+
+    document.addEventListener("keyup", (e) => {
+      if (e.key === "ArrowRight") keys.right = false;
+      if (e.key === "ArrowLeft") keys.left = false;
+      if (e.key === "ArrowUp") keys.up = false;
+    });
+
+    // プレイヤーの描画
+    function drawPlayer() {
+      ctx.fillStyle = "red";
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    // プレイヤーの動き
+    function movePlayer() {
+      if (keys.right) player.dx = player.speed;
+      if (keys.left) player.dx = -player.speed;
+
+      player.x += player.dx;
+      player.y += player.dy;
+
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+      if (player.y + player.height < canvas.height) {
+        player.dy += gravity;
+      } else {
+        player.dy = 0;
+        player.jumping = false;
+        player.y = canvas.height - player.height;
+      }
+
+      player.dx *= friction;
+    }
+
+    // ブロックの描画
+    function drawBlocks() {
+      ctx.fillStyle = "green";
+      blocks.forEach(block => {
+        ctx.fillRect(block.x, block.y, block.width, block.height);
+      });
+    }
+
+    // ゴールの描画
+    function drawGoal() {
+      ctx.fillStyle = "gold";
+      ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+    }
+
+    // 衝突判定
+    function checkCollisions() {
+      blocks.forEach(block => {
+        if (player.x + player.width > block.x && player.x < block.x + block.width &&
+            player.y + player.height > block.y && player.y < block.y + block.height) {
+          if (player.dy > 0) {
+            player.dy = 0;
+            player.y = block.y - player.height;
+            player.jumping = false;
+          }
+        }
+      });
+
+      // ゴール地点に到達したか
+      if (player.x + player.width > goal.x && player.x < goal.x + goal.width &&
+          player.y + player.height > goal.y && player.y < goal.y + goal.height) {
+        levelClear();
+      }
+    }
+
+    // レベルクリアの処理
+    function levelClear() {
+      isLevelCleared = true;
+      document.getElementById("level-clear").style.display = "block";
+      setTimeout(() => {
+        currentLevel++;
+        resetLevel();
+        document.getElementById("level-clear").style.display = "none";
+      }, 2000);
+    }
+
+    // ゲームオーバーの処理
+    function gameOver() {
+      document.getElementById("game-over").style.display = "block";
+      setTimeout(() => {
+        resetLevel();
+        document.getElementById("game-over").style.display = "none";
+      }, 2000);
+    }
+
+    // ゲームリセット
+    function resetLevel() {
+      player.x = 100;
+      player.y = canvas.height - 150;
+      player.dy = 0;
+      player.dx = 0;
+      player.jumping = false;
+
+      blocks = [
+        { x: 200, y: canvas.height - 100, width: 100, height: 30 },
+        { x: 400, y: canvas.height - 200, width: 100, height: 30 },
+        { x: 600, y: canvas.height - 300, width: 100, height: 30 },
+        { x: 700, y: canvas.height - 50, width: 50, height: 30 }
+      ];
+
+      goal = { x: 750, y: canvas.height - 50, width: 50, height: 50 };
+
+      if (currentLevel > 1) {
+        // 新しいレベルのブロック配置
+        blocks.push({ x: 100 + Math.random() * 600, y: canvas.height - Math.random() * 400 - 100, width: 100, height: 30 });
+      }
+      isLevelCleared = false;
+    }
+
+    // 秘密のゲーム（迷路）
+    function startSecretGame() {
+      alert("秘密のゲームへようこそ！");
+      // ここにランダム迷路生成コードを追加
+    }
+
+    // ゲームループ
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      movePlayer();
+      drawBlocks();
+      drawGoal();
+      checkCollisions();
+      drawPlayer();
+
+      if (player.y + player.height > canvas.height) {
+        gameOver();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>

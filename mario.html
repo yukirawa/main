@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Adventure Level 150 - Athletic Edition</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #87CEEB; /* 地上は空色 */
+    }
+    #message {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      color: #fff;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 20px;
+      border-radius: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="450"></canvas>
+  <div id="message"></div>
+  <script>
+    /**********************************************************************
+     * Pixel Adventure Level 150 - Athletic Edition
+     *
+     * 変更・追加内容：
+     * ・HUD（HP, スコア, タイム）を画面下部の黒い領域に表示
+     * ・序盤にも土管を追加し、裏ステージへの移動を可能に（戻りも実装）
+     * ・アスレティック要素強化：動くプラットフォーム、消える床、ジャンプ台などを増加
+     * ・deltaTime対応（フレームレート依存解消）
+     **********************************************************************/
+    
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const messageEl = document.getElementById('message');
+    
+    // 定数（deltaTime用：基準16.67ms＝60fps）
+    const BASE_DT = 16.67;
+    const GRAVITY = 0.6;
+    const PLAYER_SPEED = 4;
+    const JUMP_POWER = -12;
+    const SCROLL_MARGIN = canvas.width / 2;
+    const WORLD_WIDTH = 22000; // ワールド横幅
+    const BASE_MAX_ENEMIES = 10;
+    
+    // ゲーム状態
+    let scrollX = 0;
+    let gameClear = false;
+    let gameOver = false;
+    let globalTime = 0;
+    let score = 0;
+    let inUnderground = false;   // 地下ステージフラグ
+    let inHiddenStage = false;    // 裏ステージフラグ
+    
+    // プレイヤー定義
+    let player = {
+      x: 50,
+      y: 350,
+      width: 32,
+      height: 32,
+      dx: 0,
+      dy: 0,
+      jumping: false,
+      attacking: false,
+      attackTime: 0,
+      attackDuration: 15,
+      facing: "right",
+      hp: 100,
+      gunCooldown: 0
+    };
+    
+    // 銃弾管理
+    let bullets = [];
+    
+    // キー状態管理
+    const keys = {};
+    
+    // プラットフォーム配置（序盤～中盤はアスレティック要素を重視）
+    let platforms = [
+      // 基本足場
+      { x: 0, y: 400, width: WORLD_WIDTH, height: 50 },
+      // 序盤：不規則な配置、動くプラットフォーム、消える床、ジャンプ台
+      { x: 300, y: 360, width: 100, height: 20 },
+      { x: 450, y: 340, width: 80, height: 20, moving: true, speed: 2, range: 80 },
+      { x: 550, y: 320, width: 100, height: 20, jumpPad: true },
+      { x: 700, y: 380, width: 120, height: 20 },
+      { x: 900, y: 360, width: 150, height: 20 },
+      // 消える床
+      { x: 1100, y: 370, width: 120, height: 20 },
+      // 追加のアスレティック足場
+      { x: 1300, y: 340, width: 100, height: 20 },
+      { x: 1450, y: 320, width: 100, height: 20 },
+      // その後の従来配置
+      { x: 5200, y: 380, width: 120, height: 20, moving: true, speed: 2, range: 100 },
+      { x: 5500, y: 370, width: 130, height: 20, moving: true, speed: 2, range: 80 },
+      { x: 5800, y: 400 - 30 * Math.sin(0.05 * 5800), width: 100, height: 20 },
+      { x: 5900, y: 400 - 30 * Math.sin(0.05 * 5900), width: 100, height: 20 },
+      { x: 6000, y: 400 - 30 * Math.sin(0.05 * 6000), width: 100, height: 20 },
+      { x: 6100, y: 400 - 30 * Math.sin(0.05 * 6100), width: 100, height: 20 },
+      { x: 6500, y: 360, width: 100, height: 20 },
+      { x: 6620, y: 340, width: 100, height: 20 },
+      { x: 6740, y: 320, width: 100, height: 20 },
+      // 上層プラットフォーム
+      { x: 7000, y: 150, width: 200, height: 20 },
+      { x: 7300, y: 180, width: 150, height: 20 },
+      { x: 7600, y: 130, width: 200, height: 20 },
+      { x: 8000, y: 160, width: 150, height: 20 },
+      { x: 8200, y: 140, width: 200, height: 20 },
+      // 後半配置（従来の配置）
+      { x: 12100, y: 380, width: 150, height: 20 },
+      { x: 12250, y: 360, width: 150, height: 20 },
+      { x: 12400, y: 340, width: 150, height: 20 },
+      { x: 12550, y: 320, width: 150, height: 20 },
+      { x: 12700, y: 300, width: 150, height: 20 },
+      { x: 12850, y: 320, width: 150, height: 20 },
+      { x: 13000, y: 340, width: 150, height: 20 },
+      { x: 13150, y: 360, width: 150, height: 20 },
+      { x: 13200, y: 320, width: 150, height: 20 },
+      { x: 13350, y: 300, width: 150, height: 20 },
+      { x: 13500, y: 280, width: 150, height: 20 },
+      { x: 17100, y: 360, width: 120, height: 20 },
+      { x: 17400, y: 340, width: 150, height: 20, moving: true, speed: 2, range: 100 },
+      { x: 17700, y: 320, width: 150, height: 20 },
+      { x: 18000, y: 300, width: 150, height: 20, moving: true, speed: 3, range: 150 },
+      { x: 18300, y: 280, width: 150, height: 20 },
+      { x: 18600, y: 320, width: 120, height: 10 },
+      { x: 18600, y: 310, width: 120, height: 10, jumpPad: true },
+      { x: 18900, y: 320, width: 150, height: 20, moving: true, speed: 2.5, range: 100 },
+      { x: 19200, y: 340, width: 150, height: 20 },
+      { x: 19500, y: 360, width: 150, height: 20 }
+    ];
+    
+    // 消えるプラットフォーム（タイミングイベント）
+    let disappearingPlatform = { 
+      x: 9500, y: 350, width: 150, height: 20, timer: 0, interval: 120, visible: true 
+    };
+    
+    // 隠し通路トリガー（ボーナスルート用）
+    let secretTrigger = { x: 5000, y: 300, width: 50, height: 10, activated: false };
+    
+    // レバーとドア（環境パズル）
+    let lever = { x: 11000, y: 350, width: 20, height: 20, activated: false };
+    let door = { x: 11200, y: 320, width: 50, height: 80, closed: true };
+    
+    // 土管配置（地上側）  
+    // 従来の土管（後半）に加え、序盤と裏ステージ用を追加
+    let pipeMain = { x: 16000, y: 360, width: 40, height: 40 }; // 地上→地下
+    let pipeReturn = { x: 100, y: 360, width: 40, height: 40 }; // 地下から戻る
+    
+    let pipeEarly = { x: 800, y: 360, width: 40, height: 40 };   // 序盤：地上→裏ステージ
+    let pipeEarlyReturn = { x: 300, y: 360, width: 40, height: 40 }; // 裏ステージから戻る
+    
+    // コイン配置
+    let coins = [
+      { x: 12500, y: 280, collected: false },
+      { x: 12650, y: 280, collected: false },
+      { x: 12800, y: 280, collected: false },
+      { x: 13250, y: 260, collected: false },
+      { x: 13400, y: 260, collected: false },
+      { x: 13650, y: 260, collected: false },
+      { x: 18100, y: 280, collected: false },
+      { x: 18350, y: 280, collected: false },
+      { x: 18650, y: 280, collected: false }
+    ];
+    
+    // 回復アイテム（ハート）
+    let recoveryItems = [
+      { x: 8000, y: 280, collected: false, heal: 20 },
+      { x: 14000, y: 280, collected: false, heal: 20 }
+    ];
+    
+    // 障害物：スパイク
+    const spikes = [
+      { x: 800, y: 380, width: 30, height: 20 },
+      { x: 2400, y: 380, width: 30, height: 20 },
+      { x: 3600, y: 380, width: 30, height: 20 },
+      { x: 4800, y: 380, width: 30, height: 20 },
+      { x: 6000, y: 380, width: 30, height: 20 },
+      { x: 7200, y: 380, width: 30, height: 20 },
+      { x: 8400, y: 380, width: 30, height: 20 },
+      { x: 9600, y: 380, width: 30, height: 20 },
+      { x: 10800, y: 380, width: 30, height: 20 },
+      { x: 12000, y: 380, width: 30, height: 20 }
+    ];
+    
+    // ゴール＆ボスゾーン
+    const goal = { x: WORLD_WIDTH - 150, y: 320, width: 50, height: 80 };
+    
+    // 敵の定義
+    let enemies = [];
+    function createEnemy(x, y, isBoss = false) {
+      let speedMultiplier = 1 + globalTime / 6000;
+      return {
+        x: x,
+        y: y,
+        width: isBoss ? 64 : 32,
+        height: isBoss ? 64 : 32,
+        dx: isBoss ? 1.5 * speedMultiplier : ((Math.random() < 0.5 ? 2 : -2) * speedMultiplier),
+        dy: 0,
+        color: isBoss ? "darkred" : "purple",
+        hp: isBoss ? 200 : 30,
+        isBoss: isBoss,
+        attackCooldown: 0
+      };
+    }
+    enemies.push(createEnemy(900, 360));
+    enemies.push(createEnemy(1500, 360));
+    enemies.push(createEnemy(2100, 360));
+    
+    // キーイベント
+    document.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
+      if ((e.key === "ArrowUp" || e.key === " ") && !player.jumping) {
+        let onJumpPad = platforms.some(plat => plat.jumpPad &&
+            player.x + player.width > plat.x && player.x < plat.x + plat.width &&
+            player.y + player.height === plat.y + plat.height);
+        player.dy = onJumpPad ? JUMP_POWER * 1.5 : JUMP_POWER;
+        player.jumping = true;
+      }
+      if (e.key === "Control" && !player.attacking) {
+        player.attacking = true;
+        player.attackTime = player.attackDuration;
+      }
+      if (e.key === "Alt" && player.gunCooldown <= 0) {
+        let bulletSpeed = 6;
+        let bulletDx = (player.facing === "right") ? bulletSpeed : -bulletSpeed;
+        bullets.push({
+          x: player.x + player.width / 2,
+          y: player.y + player.height / 2,
+          dx: bulletDx,
+          dy: 0,
+          width: 10,
+          height: 4,
+          color: "red"
+        });
+        player.gunCooldown = 20;
+      }
+      // 下矢印で土管処理
+      if (e.key === "ArrowDown") {
+        // 地上→地下
+        if (!inUnderground && !inHiddenStage && rectCollision(player, pipeMain)) {
+          inUnderground = true;
+          player.x = pipeReturn.x + 50;
+          player.y = pipeReturn.y;
+          scrollX = 0;
+        }
+        // 地上→裏ステージ（序盤）
+        else if (!inHiddenStage && !inUnderground && rectCollision(player, pipeEarly)) {
+          inHiddenStage = true;
+          player.x = pipeEarlyReturn.x + 50;
+          player.y = pipeEarlyReturn.y;
+          scrollX = 0;
+        }
+        // 地下から戻る
+        else if (inUnderground && rectCollision(player, pipeReturn)) {
+          inUnderground = false;
+          player.x = 16000;
+          player.y = 360;
+          scrollX = 16000 - SCROLL_MARGIN;
+        }
+        // 裏ステージから戻る
+        else if (inHiddenStage && rectCollision(player, pipeEarlyReturn)) {
+          inHiddenStage = false;
+          player.x = 800;
+          player.y = 360;
+          scrollX = 0;
+        }
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+    
+    // 矩形衝突判定
+    function rectCollision(a, b) {
+      return a.x < b.x + b.width &&
+             a.x + a.width > b.x &&
+             a.y < b.y + b.height &&
+             a.y + a.height > b.y;
+    }
+    
+    // 敵攻撃（ボスは弾発射）
+    function enemyAttack(enemy) {
+      if (enemy.isBoss && enemy.attackCooldown <= 0) {
+        enemy.attackCooldown = 120;
+        enemy.bullet = {
+          x: enemy.x + enemy.width / 2,
+          y: enemy.y + enemy.height / 2,
+          dx: player.x > enemy.x ? 4 : -4,
+          dy: -2,
+          width: 10,
+          height: 10,
+          color: "orange"
+        };
+      }
+      if (enemy.attackCooldown > 0) enemy.attackCooldown--;
+    }
+    
+    // 背景描画
+    function drawParallaxBackground() {
+      if (!inUnderground && !inHiddenStage) {
+        // 地上：前半は通常、後半は夕焼け＋ビル群追加
+        let gradient;
+        if (scrollX < WORLD_WIDTH / 2) {
+          gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+          gradient.addColorStop(0, "#87CEEB");
+          gradient.addColorStop(1, "#4682B4");
+        } else {
+          gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+          gradient.addColorStop(0, "#FFA07A");
+          gradient.addColorStop(1, "#CD5C5C");
+          ctx.fillStyle = "rgba(0,0,0,0.5)";
+          for(let i = 0; i < 5; i++){
+            let bx = scrollX * 0.3 + i * 200;
+            ctx.fillRect(bx, canvas.height - 150, 100, 150);
+          }
+        }
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // 太陽
+        ctx.beginPath();
+        ctx.arc(100 - scrollX * 0.1, 100, 40, 0, Math.PI * 2);
+        ctx.fillStyle = "yellow";
+        ctx.fill();
+        
+        // 山のシルエット
+        ctx.fillStyle = "#556B2F";
+        ctx.beginPath();
+        let baseY = canvas.height * 0.8;
+        ctx.moveTo(-scrollX * 0.2, baseY);
+        ctx.lineTo(100 - scrollX * 0.2, baseY - 50);
+        ctx.lineTo(200 - scrollX * 0.2, baseY);
+        ctx.lineTo(300 - scrollX * 0.2, baseY - 30);
+        ctx.lineTo(400 - scrollX * 0.2, baseY);
+        ctx.lineTo(500 - scrollX * 0.2, baseY - 40);
+        ctx.lineTo(canvas.width + 100, baseY);
+        ctx.lineTo(canvas.width + 100, canvas.height);
+        ctx.lineTo(-100 - scrollX * 0.2, canvas.height);
+        ctx.closePath();
+        ctx.fill();
+        
+        // 近景の山
+        ctx.fillStyle = "#6B8E23";
+        ctx.beginPath();
+        let hillBase = canvas.height * 0.9;
+        ctx.moveTo(-scrollX * 0.4, hillBase);
+        ctx.lineTo(80 - scrollX * 0.4, hillBase - 20);
+        ctx.lineTo(160 - scrollX * 0.4, hillBase);
+        ctx.lineTo(240 - scrollX * 0.4, hillBase - 25);
+        ctx.lineTo(320 - scrollX * 0.4, hillBase);
+        ctx.lineTo(400 - scrollX * 0.4, hillBase - 15);
+        ctx.lineTo(canvas.width + 100, hillBase);
+        ctx.lineTo(canvas.width + 100, canvas.height);
+        ctx.lineTo(-100 - scrollX * 0.4, canvas.height);
+        ctx.closePath();
+        ctx.fill();
+        
+        // 雲
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        for (let i = 0; i < 5; i++) {
+          let cloudX = (i * 200 - scrollX * 0.3) % canvas.width;
+          let cloudY = 50 + (i % 2) * 30;
+          ctx.beginPath();
+          ctx.arc(cloudX, cloudY, 20, 0, Math.PI * 2);
+          ctx.arc(cloudX + 25, cloudY - 10, 20, 0, Math.PI * 2);
+          ctx.arc(cloudX + 50, cloudY, 20, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (inUnderground) {
+        // 地下ステージ：暗めのグラデーション＋岩壁
+        let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, "#2F4F4F");
+        gradient.addColorStop(1, "#000000");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#4B0082";
+        for(let i = 0; i < 8; i++){
+          let rockX = i * 120 - scrollX * 0.2;
+          ctx.fillRect(rockX, canvas.height - 200, 80, 200);
+        }
+      } else if (inHiddenStage) {
+        // 裏ステージ：異なる色調＋隠し要素（例：壁の一部を描画）
+        let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, "#8A2BE2");
+        gradient.addColorStop(1, "#4B0082");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 裏ステージ用の特殊な足場などを追加
+        ctx.fillStyle = "#2E8B57";
+        for(let i = 0; i < 4; i++){
+          ctx.fillRect(i * 200 - scrollX * 0.3, canvas.height - 120, 150, 20);
+        }
+      }
+    }
+    
+    // HUD描画（下部の黒い領域）
+    function drawHUD() {
+      // 黒い背景エリア（下部80px）
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
+      ctx.fillStyle = "white";
+      ctx.font = "20px Arial";
+      ctx.fillText("HP: " + player.hp, 20, canvas.height - 50);
+      ctx.fillText("Time: " + Math.floor(globalTime / 60), 200, canvas.height - 50);
+      ctx.fillText("Score: " + score, 400, canvas.height - 50);
+    }
+    
+    // deltaTime計算
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      let dt = (timestamp - lastTime) / BASE_DT; 
+      lastTime = timestamp;
+      update(dt);
+      draw();
+      if (!gameClear && !gameOver) requestAnimationFrame(gameLoop);
+    }
+    
+    // 更新処理（deltaTime対応）
+    function update(dt) {
+      if (gameClear || gameOver) return;
+      globalTime += dt;
+      
+      if (player.gunCooldown > 0) player.gunCooldown -= dt;
+      
+      // 動くプラットフォーム更新
+      platforms.forEach(plat => {
+        if (plat.moving) {
+          plat.x += plat.speed * plat.direction * dt;
+          if (!plat.initialX) plat.initialX = plat.x;
+          if (Math.abs(plat.x - plat.initialX) > plat.range) {
+            plat.direction *= -1;
+          }
+        }
+      });
+      
+      // 消えるプラットフォーム更新
+      disappearingPlatform.timer += dt;
+      if (disappearingPlatform.timer >= disappearingPlatform.interval) {
+        disappearingPlatform.visible = !disappearingPlatform.visible;
+        disappearingPlatform.timer = 0;
+      }
+      
+      // 隠し通路トリガー
+      if (!secretTrigger.activated && rectCollision(player, secretTrigger)) {
+        secretTrigger.activated = true;
+        player.x += 300;
+        score += 100;
+      }
+      
+      // レバーとドア
+      if (!lever.activated && rectCollision(player, lever) && player.attacking) {
+        lever.activated = true;
+        door.closed = false;
+        score += 50;
+      }
+      
+      // 敵スポーン
+      let currentMaxEnemies = Math.min(BASE_MAX_ENEMIES + Math.floor(globalTime / 600), 50);
+      if (enemies.length < currentMaxEnemies) {
+        let spawnX = scrollX + canvas.width + Math.random() * 300;
+        let spawnY = (Math.random() < 0.3) ? -50 : 360;
+        enemies.push(createEnemy(spawnX, spawnY));
+      }
+      
+      // プレイヤー移動
+      if (keys["ArrowRight"]) {
+        player.dx = PLAYER_SPEED;
+        player.facing = "right";
+      } else if (keys["ArrowLeft"]) {
+        player.dx = -PLAYER_SPEED;
+        player.facing = "left";
+      } else {
+        player.dx = 0;
+      }
+      
+      player.dy += GRAVITY * dt;
+      player.x += player.dx * dt;
+      player.y += player.dy * dt;
+      
+      // プラットフォーム衝突
+      let onPlatform = false;
+      let checkPlats = platforms.concat(disappearingPlatform.visible ? [disappearingPlatform] : []);
+      checkPlats.forEach(plat => {
+        if (player.x + player.width > plat.x && player.x < plat.x + plat.width) {
+          if (player.dy < 0 && player.y <= plat.y + plat.height && player.y > plat.y) {
+            player.y = plat.y + plat.height;
+            player.dy = 0;
+          }
+          if (player.dy >= 0 && player.y + player.height <= plat.y + 10 && player.y + player.height + player.dy >= plat.y) {
+            player.y = plat.y - player.height;
+            player.dy = 0;
+            player.jumping = false;
+            onPlatform = true;
+          }
+        }
+      });
+      if (!onPlatform && player.y + player.height > canvas.height - 80) {
+        player.y = canvas.height - 80 - player.height;
+        player.dy = 0;
+        player.jumping = false;
+      }
+      
+      // プレイヤー攻撃更新
+      if (player.attacking) {
+        player.attackTime -= dt;
+        if (player.attackTime <= 0) {
+          player.attacking = false;
+        }
+      }
+      
+      // コイン取得
+      coins.forEach(coin => {
+        if (!coin.collected && rectCollision(player, { x: coin.x, y: coin.y, width: 16, height: 16 })) {
+          coin.collected = true;
+          score += 10;
+        }
+      });
+      
+      // 回復アイテム取得
+      recoveryItems.forEach(item => {
+        if (!item.collected && rectCollision(player, { x: item.x, y: item.y, width: 16, height: 16 })) {
+          item.collected = true;
+          player.hp = Math.min(player.hp + item.heal, 100);
+          score += 20;
+        }
+      });
+      
+      // 敵更新
+      enemies.forEach((enemy, idx) => {
+        enemy.x += enemy.dx * dt;
+        enemy.dy += GRAVITY * dt;
+        enemy.y += enemy.dy * dt;
+        platforms.forEach(plat => {
+          if (enemy.x + enemy.width > plat.x && enemy.x < plat.x + plat.width) {
+            if (enemy.y + enemy.height <= plat.y + 10 && enemy.y + enemy.height + enemy.dy >= plat.y) {
+              enemy.y = plat.y - enemy.height;
+              enemy.dy = 0;
+            }
+          }
+        });
+        if (enemy.y + enemy.height > canvas.height - 80) {
+          enemy.y = canvas.height - 80 - enemy.height;
+          enemy.dy = 0;
+        }
+        if (enemy.x <= 0 || enemy.x + enemy.width >= WORLD_WIDTH) {
+          enemy.dx *= -1;
+        }
+        if (enemy.isBoss) enemyAttack(enemy);
+        if (enemy.bullet) {
+          enemy.bullet.x += enemy.bullet.dx * dt;
+          enemy.bullet.y += enemy.bullet.dy * dt;
+          if (enemy.bullet.x < 0 || enemy.bullet.x > WORLD_WIDTH) {
+            enemy.bullet = null;
+          }
+        }
+      });
+      
+      // 銃弾更新
+      bullets.forEach((bullet, bIdx) => {
+        bullet.x += bullet.dx * dt;
+        bullet.y += bullet.dy * dt;
+        if (bullet.x < 0 || bullet.x > WORLD_WIDTH) {
+          bullets.splice(bIdx, 1);
+        }
+        enemies.forEach((enemy, eIdx) => {
+          if (rectCollision(bullet, enemy)) {
+            enemy.hp -= 25;
+            bullets.splice(bIdx, 1);
+            if (enemy.hp <= 0) {
+              enemies.splice(eIdx, 1);
+              score += 50;
+            }
+          }
+        });
+      });
+      
+      // 敵との衝突
+      enemies.forEach((enemy, idx) => {
+        if (rectCollision(player, enemy)) {
+          if (player.attacking) {
+            enemy.hp -= 15;
+            if (enemy.hp <= 0) {
+              enemies.splice(idx, 1);
+              score += 50;
+            }
+          } else {
+            player.hp -= enemy.isBoss ? 20 : 10;
+            if (player.hp <= 0) {
+              gameOver = true;
+              showMessage("Game Over");
+            }
+          }
+        }
+        if (enemy.bullet && rectCollision(player, enemy.bullet)) {
+          player.hp -= 15;
+          enemy.bullet = null;
+          if (player.hp <= 0) {
+            gameOver = true;
+            showMessage("Game Over");
+          }
+        }
+      });
+      
+      // スパイク衝突
+      spikes.forEach(spike => {
+        if (rectCollision(player, spike)) {
+          gameOver = true;
+          showMessage("Game Over: Spiked!");
+        }
+      });
+      
+      // ドア（閉じている場合は衝突）
+      if (door.closed && rectCollision(player, door)) {
+        player.hp = 0;
+        gameOver = true;
+        showMessage("Game Over: Door Locked!");
+      }
+      
+      // ゴール判定
+      if (rectCollision(player, goal)) {
+        let bossAlive = enemies.some(enemy => enemy.isBoss);
+        if (!bossAlive) {
+          gameClear = true;
+          showMessage("Clear!");
+        }
+      }
+      
+      // スクロール処理
+      if (player.x - scrollX > SCROLL_MARGIN) {
+        scrollX = player.x - SCROLL_MARGIN;
+      }
+      if (player.x - scrollX < 100) {
+        scrollX = player.x - 100;
+        if (scrollX < 0) scrollX = 0;
+      }
+      
+      // ボス出現
+      if (globalTime > 2400 && !enemies.some(e => e.isBoss)) {
+        enemies.push(createEnemy(WORLD_WIDTH - 400, 320, true));
+      }
+    }
+    
+    // 描画処理
+    function draw() {
+      drawParallaxBackground();
+      
+      // 通常プラットフォーム
+      ctx.fillStyle = "#654321";
+      platforms.forEach(plat => {
+        ctx.fillRect(plat.x - scrollX, plat.y, plat.width, plat.height);
+      });
+      
+      // 消えるプラットフォーム
+      if (disappearingPlatform.visible) {
+        ctx.fillStyle = "#8B4513";
+        ctx.fillRect(disappearingPlatform.x - scrollX, disappearingPlatform.y, disappearingPlatform.width, disappearingPlatform.height);
+      }
+      
+      // 隠し通路トリガー（非表示またはデバッグ用）
+      // ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      // ctx.strokeRect(secretTrigger.x - scrollX, secretTrigger.y, secretTrigger.width, secretTrigger.height);
+      
+      // レバー
+      ctx.fillStyle = lever.activated ? "lightgreen" : "grey";
+      ctx.fillRect(lever.x - scrollX, lever.y, lever.width, lever.height);
+      
+      // ドア（閉じている場合のみ表示）
+      if (door.closed) {
+        ctx.fillStyle = "#FFD700";
+        ctx.fillRect(door.x - scrollX, door.y, door.width, door.height);
+      }
+      
+      // 土管描画
+      if (!inUnderground && !inHiddenStage) {
+        // 従来の後半土管
+        ctx.fillStyle = "green";
+        ctx.fillRect(pipeMain.x - scrollX, pipeMain.y, pipeMain.width, pipeMain.height);
+        // 追加：序盤の土管
+        ctx.fillStyle = "green";
+        ctx.fillRect(pipeEarly.x - scrollX, pipeEarly.y, pipeEarly.width, pipeEarly.height);
+      } else {
+        // 地下または裏ステージの戻り口
+        if (inUnderground) {
+          ctx.fillStyle = "green";
+          ctx.fillRect(pipeReturn.x - scrollX, pipeReturn.y, pipeReturn.width, pipeReturn.height);
+        }
+        if (inHiddenStage) {
+          ctx.fillStyle = "green";
+          ctx.fillRect(pipeEarlyReturn.x - scrollX, pipeEarlyReturn.y, pipeEarlyReturn.width, pipeEarlyReturn.height);
+        }
+      }
+      
+      // ゴール描画
+      ctx.fillStyle = "#FFD700";
+      ctx.fillRect(goal.x - scrollX, goal.y, goal.width, goal.height);
+      
+      // コイン描画
+      coins.forEach(coin => {
+        if (!coin.collected) {
+          ctx.fillStyle = "gold";
+          ctx.beginPath();
+          ctx.arc(coin.x - scrollX + 8, coin.y + 8, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      
+      // 回復アイテム描画
+      recoveryItems.forEach(item => {
+        if (!item.collected) {
+          ctx.fillStyle = "pink";
+          ctx.beginPath();
+          ctx.arc(item.x - scrollX + 8, item.y + 8, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      
+      // スパイク描画
+      ctx.fillStyle = "black";
+      spikes.forEach(spike => {
+        ctx.beginPath();
+        ctx.moveTo(spike.x - scrollX, spike.y + spike.height);
+        ctx.lineTo(spike.x - scrollX + spike.width / 2, spike.y);
+        ctx.lineTo(spike.x - scrollX + spike.width, spike.y + spike.height);
+        ctx.closePath();
+        ctx.fill();
+      });
+      
+      // 敵描画
+      enemies.forEach(enemy => {
+        ctx.fillStyle = enemy.color;
+        ctx.fillRect(enemy.x - scrollX, enemy.y, enemy.width, enemy.height);
+        if (enemy.bullet) {
+          ctx.fillStyle = enemy.bullet.color;
+          ctx.fillRect(enemy.bullet.x - scrollX, enemy.bullet.y, enemy.bullet.width, enemy.bullet.height);
+        }
+      });
+      
+      // 銃弾描画
+      bullets.forEach(bullet => {
+        ctx.fillStyle = bullet.color;
+        ctx.fillRect(bullet.x - scrollX, bullet.y, bullet.width, bullet.height);
+      });
+      
+      // プレイヤー描画
+      ctx.fillStyle = "#00FF00";
+      ctx.fillRect(player.x - scrollX, player.y, player.width, player.height);
+      if (player.attacking) {
+        ctx.fillStyle = "yellow";
+        let effectX = (player.facing === "right") ? player.x + player.width - scrollX : player.x - 20 - scrollX;
+        ctx.fillRect(effectX, player.y + 10, 20, player.height - 20);
+      }
+      
+      // HUD（下部黒エリアに描画）
+      drawHUD();
+    }
+    
+    // メッセージ表示
+    function showMessage(text) {
+      messageEl.textContent = text;
+      messageEl.style.display = "block";
+    }
+    
+    // ゲーム開始
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
