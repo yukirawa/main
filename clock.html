@@ -120,12 +120,24 @@
         </div>
     </div>
     <script>
-        // 時計の更新
-        const oldMonthNames = ['睦月', '如月', '弥生', '卯月', '皐月', '水無月', '文月', '葉月', '長月', '神無月', '霜月', '師走'];
-        let lastUpdateTime = Date.now();
+        let serverTimeOffset = 0; // サーバー時刻とローカル時刻の差分（ミリ秒）
 
+        // APIから正確な時刻を取得
+        async function fetchAccurateTime() {
+            try {
+                const response = await fetch('https://worldtimeapi.org/api/timezone/Asia/Tokyo');
+                const data = await response.json();
+                const serverTime = new Date(data.datetime).getTime();
+                const localTime = Date.now();
+                serverTimeOffset = serverTime - localTime; // サーバー時刻とローカル時刻の差分を計算
+            } catch (error) {
+                console.error('時刻取得エラー:', error);
+            }
+        }
+
+        // 時計の更新
         function updateClock() {
-            const now = new Date(lastUpdateTime);
+            const now = new Date(Date.now() + serverTimeOffset); // サーバー時刻を補正
             const Y = now.getFullYear();
             const M = now.getMonth();
             const D = String(now.getDate()).padStart(2, '0');
@@ -141,17 +153,16 @@
             }
 
             document.getElementById('unixDisplay').textContent = `Unix時間: ${Math.floor(now.getTime() / 1000)}`;
-            lastUpdateTime += 10; // 10msごとに更新
         }
 
+        // 初回にAPIから時刻を取得
+        fetchAccurateTime();
+
+        // 10msごとに時計を更新
         setInterval(updateClock, 10);
 
-        // テーマ切り替え
-        document.querySelectorAll('.theme-switcher button').forEach(button => {
-            button.addEventListener('click', () => {
-                document.body.className = `${button.dataset.theme}-theme`;
-            });
-        });
+        // 1分ごとにAPIから時刻を再取得（補正）
+        setInterval(fetchAccurateTime, 60000);
     </script>
 </body>
 </html>
