@@ -9,6 +9,7 @@
         body.default-theme { --bg: #121212; --fg: #00ffcc; --accent: #00cc99; --border: #00ffcc; --shadow: #00ffcc; --unixfg: #ff00ff; }
         body.blue-theme    { --bg: #0a0a1a; --fg: #0099ff; --accent: #0066cc; --border: #0099ff; --shadow: #0099ff; --unixfg: #cc00ff; }
         body.pink-theme    { --bg: #1a0a0a; --fg: #ff66cc; --accent: #cc0099; --border: #ff66cc; --shadow: #ff66cc; --unixfg: #66ccff; }
+        /* ゲーミングテーマ：滑らかな虹色 */
         body.gaming-theme .container,
         body.gaming-theme .tab.active,
         body.gaming-theme button,
@@ -16,7 +17,7 @@
         body.gaming-theme #unixDisplay,
         body.gaming-theme .display,
         body.gaming-theme input {
-            animation: gaming-hue 10s linear infinite;
+            animation: gaming-hue 5s linear infinite;
             color: hsl(var(--hue), 100%, 50%) !important;
             border-color: hsl(var(--hue), 100%, 50%) !important;
             text-shadow: 0 0 10px hsl(var(--hue), 100%, 50%), 0 0 20px hsl(var(--hue), 100%, 50%);
@@ -25,6 +26,11 @@
             0% { --hue: 0; }
             50% { --hue: 180; }
             100% { --hue: 360; }
+        }
+        /* 日本モード */
+        body.japan-theme {
+            --bg: #f7f4e6; --fg: #3e2723; --accent: #b71c1c; --border: #3e2723; --shadow: #3e2723; --unixfg: #1b5e20;
+            font-family: 'Yu Mincho','serif';
         }
         body {
             margin: 0; padding: 0;
@@ -49,7 +55,7 @@
             background: var(--accent); color: var(--bg);
         }
         .view { display: none; }
-        .view.active { display: block; }
+        .view.active { display: block; }                   
         #clockDisplay {
             font-size: 48px; font-weight: bold;
             text-shadow: 0 0 10px var(--fg),0 0 20px var(--accent);
@@ -87,7 +93,7 @@
 <body class="default-theme">
     <div class="container">
         <div class="tabs">
-            <div class="tab active" data-target="clockView">時計</div>
+            <div class="tab active" data-target="clockView">時刻</div>
             <div class="tab" data-target="stopwatchView">ストップウォッチ</div>
             <div class="tab" data-target="timerView">タイマー</div>
         </div>
@@ -115,54 +121,117 @@
             <button data-theme="default">デフォルト</button>
             <button data-theme="blue">ブルー</button>
             <button data-theme="pink">ピンク</button>
-            <button data-theme="gaming">ゲーミング</button>
-            <button data-theme="japan">日本モード</button>
+            <button data-theme="gaming">ゲーミングテーマ</button>
+            <button data-theme="japan">日本風テーマ</button>
         </div>
     </div>
     <script>
-        let serverTimeOffset = 0; // サーバー時刻とローカル時刻の差分（ミリ秒）
-
-        // APIから正確な時刻を取得
-        async function fetchAccurateTime() {
+        let offset = 0;
+        // NICT から時刻を取得
+        async function fetchNICT() {
             try {
-                const response = await fetch('https://worldtimeapi.org/api/timezone/Asia/Tokyo');
-                const data = await response.json();
-                const serverTime = new Date(data.datetime).getTime();
-                const localTime = Date.now();
-                serverTimeOffset = serverTime - localTime; // サーバー時刻とローカル時刻の差分を計算
-            } catch (error) {
-                console.error('時刻取得エラー:', error);
+                const res = await fetch('https://3fe5a5f690efc790d4764f1c528a4ebb89fa4168.nict.go.jp/cgi-bin/json');
+                const data = await res.json();
+                offset = data.st * 1000 - Date.now();
+                console.log('NICT fetch success, offset=', offset);
+            } catch (e) {
+                console.error('NICT 時刻取得エラー:', e);
             }
         }
-
-        // 時計の更新
-        function updateClock() {
-            const now = new Date(Date.now() + serverTimeOffset); // サーバー時刻を補正
-            const Y = now.getFullYear();
-            const M = now.getMonth();
-            const D = String(now.getDate()).padStart(2, '0');
-            const h = String(now.getHours()).padStart(2, '0');
-            const m = String(now.getMinutes()).padStart(2, '0');
-            const s = String(now.getSeconds()).padStart(2, '0');
-            const ms = String(now.getMilliseconds()).padStart(3, '0');
-
-            if (document.body.classList.contains('japan-theme')) {
-                document.getElementById('clockDisplay').textContent = `${Y}年 ${oldMonthNames[M]} ${D}日 ${h}時${m}分${s}秒.${ms}`;
-            } else {
-                document.getElementById('clockDisplay').textContent = `${Y}/${String(M + 1).padStart(2, '0')}/${D} ${h}:${m}:${s}.${ms}`;
-            }
-
-            document.getElementById('unixDisplay').textContent = `Unix時間: ${Math.floor(now.getTime() / 1000)}`;
+        function pad(num, len = 2) { return num.toString().padStart(len, '0'); }
+        function showClock() {
+            const now = Date.now() + offset;
+            const jst = new Date(now + 9 * 60 * 60 * 1000);
+            document.getElementById('clockDisplay').textContent =
+                `${jst.getFullYear()}/${pad(jst.getMonth()+1)}/${pad(jst.getDate())} ` +
+                `${pad(jst.getHours())}:${pad(jst.getMinutes())}:${pad(jst.getSeconds())}.${pad(jst.getMilliseconds(),3)}`;
+            document.getElementById('unixDisplay').textContent = Math.floor(jst.getTime()/1000);
         }
-
-        // 初回にAPIから時刻を取得
-        fetchAccurateTime();
-
-        // 10msごとに時計を更新
-        setInterval(updateClock, 10);
-
-        // 1分ごとにAPIから時刻を再取得（補正）
-        setInterval(fetchAccurateTime, 60000);
+        // タブ切替
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab, .view').forEach(el => el.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.target).classList.add('active');
+            });
+        });
+        // テーマ切替
+        document.querySelectorAll('.theme-switcher button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.body.className = btn.dataset.theme + '-theme';
+            });
+        });
+        // ストップウォッチ
+        let swStartTime=0, swElapsed=0, swTimer;
+        const swDisplay = document.getElementById('stopwatchDisplay');
+        document.getElementById('swStart').onclick = () => {
+            swStartTime = Date.now() - swElapsed;
+            swTimer = setInterval(() => {
+                swElapsed = Date.now() - swStartTime;
+                const m = pad(Math.floor(swElapsed/60000));
+                const s = pad(Math.floor(swElapsed/1000)%60);
+                const ms = pad(swElapsed%1000,3);
+                swDisplay.textContent = `${m}:${s}.${ms}`;
+            }, 10);
+            document.getElementById('swStart').disabled = true;
+            document.getElementById('swStop').disabled = false;
+            document.getElementById('swReset').disabled = false;
+        };
+        document.getElementById('swStop').onclick = () => {
+            clearInterval(swTimer);
+            document.getElementById('swStart').disabled = false;
+            document.getElementById('swStop').disabled = true;
+        };
+        document.getElementById('swReset').onclick = () => {
+            clearInterval(swTimer);
+            swElapsed = 0; swDisplay.textContent='00:00.000';
+            document.getElementById('swStart').disabled = false;
+            document.getElementById('swStop').disabled = true;
+            document.getElementById('swReset').disabled = true;
+        };
+        // タイマー
+        let tTimer, tRemaining=0;
+        const tDisplay = document.getElementById('timerDisplay');
+        document.getElementById('tStart').onclick = () => {
+            const min = parseInt(document.getElementById('timerMin').value)||0;
+            const sec = parseInt(document.getElementById('timerSec').value)||0;
+            tRemaining = min*60000 + sec*1000;
+            if(tRemaining<=0) return;
+            const end = Date.now() + tRemaining;
+            tTimer = setInterval(() => {
+                tRemaining = end - Date.now();
+                if(tRemaining<=0) {
+                    clearInterval(tTimer);
+                    tDisplay.textContent='00:00';
+                    document.getElementById('tStart').disabled=false;
+                    document.getElementById('tStop').disabled=true;
+                    document.getElementById('tReset').disabled=true;
+                    return;
+                }
+                const m = pad(Math.floor(tRemaining/60000));
+                const s = pad(Math.floor(tRemaining/1000)%60);
+                tDisplay.textContent = `${m}:${s}`;
+            }, 200);
+            document.getElementById('tStart').disabled=true;
+            document.getElementById('tStop').disabled=false;
+            document.getElementById('tReset').disabled=false;
+        };
+        document.getElementById('tStop').onclick = () => {
+            clearInterval(tTimer);
+            document.getElementById('tStart').disabled=false;
+            document.getElementById('tStop').disabled=true;
+        };
+        document.getElementById('tReset').onclick = () => {
+            clearInterval(tTimer);
+            tDisplay.textContent='00:00';
+            document.getElementById('tStart').disabled=false;
+            document.getElementById('tStop').disabled=true;
+            document.getElementById('tReset').disabled=true;
+        };
+        // 初期化
+        fetchNICT();
+        setInterval(fetchNICT, 180000);
+        setInterval(showClock, 10);
     </script>
 </body>
 </html>
