@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ゆきらわのページ</title>
+    <style>
+        /* 背景を虹色グラデーションで動かす */
+        body {
+            background: linear-gradient(270deg, red, orange, yellow, green, blue, indigo, violet);
+            background-size: 1400% 1400%;
+            animation: bgAnimation 3s infinite linear;
+            color: white;
+            font-family: "MS PGothic", sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+
+        @keyframes bgAnimation {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+
+
+        /* タイトルの文字を虹色グラデーションで回転させる */
+        h1 {
+            font-size: 3em;
+            background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: textSpin 3s linear infinite, textGlow 1.5s ease-in-out infinite alternate;
+        }
+
+
+        @keyframes textSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+        @keyframes textGlow {
+            from { text-shadow: 0 0 10px white, 0 0 20px white, 0 0 30px yellow; }
+            to { text-shadow: 0 0 20px yellow, 0 0 30px orange, 0 0 40px red; }
+        }
+
+
+        /* 本文の文字（h2）は回転させないが光らせる */
+        h2 {
+            font-size: 2em;
+            text-shadow: 0 0 5px white, 0 0 10px white, 0 0 15px lightblue;
+            margin-top: 1.5em;
+        }
+
+
+        /* ブログのセクション */
+        .blog {
+            padding: 1em;
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: left;
+            font-size: 1.2em;
+            line-height: 1.8;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            overflow: auto;
+            max-height: 300px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+
+        .blog p {
+            color: lightgray;
+        }
+    </style>
+</head>
+<body>
+    <h1>ゆきらわのページ</h1>
+    <h2>自己紹介</h2>
+    <p>こんにちは。ゆきらわです。<br>(´・ω・`)</p>
+
+
+    <h2>ブログ</h2>
+    <div class="blog">
+        <!-- ブログのテスト用コンテンツ -->
+        <p>1/28<br>はじめまして。個人用サイト作ってみました。<br>まだ未完成ですが。</p>
+   
+    </div>
+
+
+    <h2>連絡先</h2>
+    <p>E-mail：kuniwa56@gmail.com</p>
+</body>
+</html>

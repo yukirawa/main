@@ -1,0 +1,286 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ウェブエディタ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/theme/dracula.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            background-color: #333;
+        }
+
+
+        .tab {
+            padding: 10px 20px;
+            color: white;
+            cursor: pointer;
+            border: 1px solid #444;
+            background-color: #444;
+        }
+
+
+        .tab.active {
+            background-color: #555;
+        }
+
+
+        .editor-container {
+            width: 100%;
+            flex-grow: 1;
+            display: none;
+        }
+
+
+        #html-editor {
+            display: block;
+        }
+
+
+        .editor-container textarea {
+            width: 100%;
+            height: 100%;
+            font-size: 16px;
+            padding: 10px;
+            border: none;
+            outline: none;
+            font-family: monospace;
+        }
+
+
+        .button-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+
+        .run-button, .download-button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+
+        .run-button:hover, .download-button:hover {
+            background-color: #45a049;
+        }
+
+
+        .error-message {
+            color: red;
+            margin-top: 10px;
+            font-size: 16px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('html')">HTML</div>
+        <div class="tab" onclick="switchTab('css')">CSS</div>
+        <div class="tab" onclick="switchTab('javascript')">JavaScript</div>
+    </div>
+
+
+    <div id="html-editor" class="editor-container">
+        <textarea id="html-code"></textarea>
+    </div>
+    <div id="css-editor" class="editor-container">
+        <textarea id="css-code"></textarea>
+    </div>
+    <div id="javascript-editor" class="editor-container">
+        <textarea id="javascript-code"></textarea>
+    </div>
+
+
+    <div class="button-container">
+        <button class="run-button" onclick="runCode()">実行</button>
+        <button class="download-button" onclick="downloadFile('html')">HTMLダウンロード</button>
+        <button class="download-button" onclick="downloadFile('css')">CSSダウンロード</button>
+        <button class="download-button" onclick="downloadFile('javascript')">JavaScriptダウンロード</button>
+        <button class="download-button" onclick="downloadAllFiles()">まとめてダウンロード</button>
+    </div>
+
+
+    <div id="error-display" class="error-message"></div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/mode/javascript/javascript.min.js"></script>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+
+
+    <script>
+        // CodeMirrorエディタ初期化
+        var htmlEditor = CodeMirror.fromTextArea(document.getElementById("html-code"), {
+            mode: "htmlmixed",
+            theme: "dracula",
+            lineNumbers: true,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            indentUnit: 4,
+            tabSize: 4
+        });
+
+
+        var cssEditor = CodeMirror.fromTextArea(document.getElementById("css-code"), {
+            mode: "css",
+            theme: "dracula",
+            lineNumbers: true,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            indentUnit: 4,
+            tabSize: 4
+        });
+
+
+        var javascriptEditor = CodeMirror.fromTextArea(document.getElementById("javascript-code"), {
+            mode: "javascript",
+            theme: "dracula",
+            lineNumbers: true,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            indentUnit: 4,
+            tabSize: 4
+        });
+
+
+        // タブ切り替え機能
+        function switchTab(tab) {
+            var tabs = document.querySelectorAll('.tab');
+            var editors = document.querySelectorAll('.editor-container');
+
+
+            tabs.forEach(function(tabElement) {
+                tabElement.classList.remove('active');
+            });
+
+
+            editors.forEach(function(editor) {
+                editor.style.display = 'none';
+            });
+
+
+            document.getElementById(tab + '-editor').style.display = 'block';
+            document.querySelector('.tab.' + tab).classList.add('active');
+        }
+
+
+        // 実行ボタンの処理
+        function runCode() {
+            var htmlCode = htmlEditor.getValue();
+            var cssCode = cssEditor.getValue();
+            var javascriptCode = javascriptEditor.getValue();
+            var errorDisplay = document.getElementById("error-display");
+
+
+            // エラーメッセージをクリア
+            errorDisplay.innerHTML = '';
+
+
+            // HTML, CSS, JavaScript を結合して実行
+            try {
+                var iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.height = '400px';
+                document.body.appendChild(iframe);
+
+
+                var doc = iframe.contentWindow.document;
+                doc.open();
+                doc.write(htmlCode);
+                doc.close();
+
+
+                var style = doc.createElement('style');
+                style.innerHTML = cssCode;
+                doc.head.appendChild(style);
+
+
+                var script = doc.createElement('script');
+                script.innerHTML = javascriptCode;
+                doc.body.appendChild(script);
+            } catch (e) {
+                console.error("エラー: ", e);
+                errorDisplay.innerHTML = `エラー発生: ${e.message}`;
+            }
+        }
+
+
+        // 個別ダウンロード
+        function downloadFile(type) {
+            var code = '';
+            var filename = '';
+
+
+            switch (type) {
+                case 'html':
+                    code = htmlEditor.getValue();
+                    filename = 'index.html';
+                    break;
+                case 'css':
+                    code = cssEditor.getValue();
+                    filename = 'styles.css';
+                    break;
+                case 'javascript':
+                    code = javascriptEditor.getValue();
+                    filename = 'script.js';
+                    break;
+            }
+
+
+            var blob = new Blob([code], { type: 'text/plain' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+
+        // まとめてダウンロード
+        function downloadAllFiles() {
+            var htmlCode = htmlEditor.getValue();
+            var cssCode = cssEditor.getValue();
+            var javascriptCode = javascriptEditor.getValue();
+
+
+            var zip = new JSZip();
+            zip.file("index.html", htmlCode);
+            zip.file("styles.css", cssCode);
+            zip.file("script.js", javascriptCode);
+
+
+            zip.generateAsync({ type: "blob" }).then(function(content) {
+                var link = document.createElement("a");
+                link.href = URL.createObjectURL(content);
+                link.download = "project.zip";
+                link.click();
+            });
+        }
+    </script>
+</body>
+</html>

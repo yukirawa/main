@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RPG World Adventure</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Arial', sans-serif;
+      background: #2c3e50;
+      color: white;
+      overflow: hidden;
+    }
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      border: 2px solid #fff;
+    }
+    #hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 20px;
+      color: white;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="hud">
+    HP: <span id="playerHp">100</span> | MP: <span id="playerMp">50</span> | Score: <span id="score">0</span>
+  </div>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const playerHpDisplay = document.getElementById('playerHp');
+    const playerMpDisplay = document.getElementById('playerMp');
+    const scoreDisplay = document.getElementById('score');
+
+    let player = {
+      x: 400,
+      y: 300,
+      width: 50,
+      height: 50,
+      color: '#00ff00',
+      speed: 4,
+      hp: 100,
+      mp: 50,
+      attackPower: 10
+    };
+
+    let enemies = [];
+    let score = 0;
+
+    let isInBattle = false;
+    let currentEnemy = null;
+
+    function createEnemy() {
+      let enemy = {
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        width: 50,
+        height: 50,
+        color: 'red',
+        hp: 50
+      };
+      enemies.push(enemy);
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    function drawEnemies() {
+      enemies.forEach(enemy => {
+        ctx.fillStyle = enemy.color;
+        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+      });
+    }
+
+    function movePlayer() {
+      if (player.dx !== 0 || player.dy !== 0) {
+        player.x += player.dx;
+        player.y += player.dy;
+
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+        if (player.y < 0) player.y = 0;
+        if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+      }
+    }
+
+    function keyDown(e) {
+      if (e.key === "ArrowRight" || e.key === "d") player.dx = player.speed;
+      if (e.key === "ArrowLeft" || e.key === "a") player.dx = -player.speed;
+      if (e.key === "ArrowUp" || e.key === "w") player.dy = -player.speed;
+      if (e.key === "ArrowDown" || e.key === "s") player.dy = player.speed;
+      if (e.key === " ") attack();  // Space to attack
+    }
+
+    function keyUp(e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft" || e.key === "d" || e.key === "a") player.dx = 0;
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "w" || e.key === "s") player.dy = 0;
+    }
+
+    function checkForBattle() {
+      enemies.forEach(enemy => {
+        if (
+          player.x < enemy.x + enemy.width &&
+          player.x + player.width > enemy.x &&
+          player.y < enemy.y + enemy.height &&
+          player.y + player.height > enemy.y
+        ) {
+          isInBattle = true;
+          currentEnemy = enemy;
+          enemies = enemies.filter(e => e !== enemy); // Remove the enemy from the world
+          alert("Battle starts! Press space to attack.");
+        }
+      });
+    }
+
+    function attack() {
+      if (!isInBattle) return;
+      currentEnemy.hp -= player.attackPower;
+      if (currentEnemy.hp <= 0) {
+        score += 100;
+        alert("Enemy defeated! Score +100");
+        currentEnemy = null;
+        isInBattle = false;
+        createEnemy();
+      }
+    }
+
+    function updateUI() {
+      playerHpDisplay.textContent = player.hp;
+      playerMpDisplay.textContent = player.mp;
+      scoreDisplay.textContent = score;
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!isInBattle) {
+        checkForBattle();
+      }
+
+      movePlayer();
+      drawPlayer();
+      drawEnemies();
+      updateUI();
+    }
+
+    createEnemy(); // Create the first enemy
+
+    document.addEventListener('keydown', keyDown);
+    document.addEventListener('keyup', keyUp);
+
+    setInterval(gameLoop, 1000 / 60); // Run game loop
+
+  </script>
+
+</body>
+</html>
